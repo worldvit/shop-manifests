@@ -1,0 +1,23 @@
+# order-api를 Argo Rollouts 카나리로 배포한다.
+# Pod 템플릿은 Deployment(order-api)의 것을 그대로 참조하므로 이미지 태그는 지금처럼 images 필드가 정한다.
+# Deployment의 복제본은 0으로 두고, 실제 Pod는 이 Rollout이 만든다.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: order-api
+spec:
+  replicas: 4
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app: order-api }
+  workloadRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: order-api
+  strategy:
+    canary:
+      steps:
+        - setWeight: 25          # 4개 중 1개를 새 버전으로
+        - pause: {}              # 사람이 promote할 때까지 대기
+        - setWeight: 50          # 4개 중 2개
+        - pause: { duration: 60s }
