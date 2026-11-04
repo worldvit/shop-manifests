@@ -1,0 +1,29 @@
+# 심화 1: product-api를 Argo Rollouts 블루/그린으로 배포한다.
+# overlays/dev/kustomization.yaml의 resources에 이 파일을 추가하고 replicas의 product-api를 0으로 바꾼다.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: product-api
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app: product-api }
+  workloadRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: product-api
+  strategy:
+    blueGreen:
+      activeService: product-api            # 사용자 트래픽 (기존 Service)
+      previewService: product-api-preview   # 새 버전 미리 보기
+      autoPromotionEnabled: false           # 사람이 promote해야 전환
+      scaleDownDelaySeconds: 30             # 전환 뒤 옛 버전 30초 유지
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-api-preview
+spec:
+  selector: { app: product-api }
+  ports: [{ port: 5000, targetPort: 5000 }]

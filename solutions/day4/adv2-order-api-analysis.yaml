@@ -1,0 +1,57 @@
+# 심화 2: 카나리 25% 단계에서 Job으로 새 버전만 20번 호출해 하나라도 실패하면 자동 abort한다.
+# overlays/dev에서 order-api-rollout.yaml 대신 이 파일을 resources에 넣는다.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: order-api
+spec:
+  replicas: 4
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app: order-api }
+  workloadRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: order-api
+  strategy:
+    canary:
+      canaryService: order-api-canary      # 카나리 Pod만 가리키도록 컨트롤러가 셀렉터를 바꾼다
+      steps:
+        - setWeight: 25
+        - analysis:
+            templates: [{ templateName: order-api-check }]
+        - setWeight: 50
+        - pause: { duration: 60s }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-api-canary
+spec:
+  selector: { app: order-api }
+  ports: [{ port: 5000, targetPort: 5000 }]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: order-api-check
+spec:
+  metrics:
+    - name: orders-ok
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: check
+                    image: curlimages/curl:8.11.1
+                    command: [sh, -c]
+                    args:
+                      - |
+                        for i in $(seq 20); do
+                          code=$(curl -s -o /dev/null -w '%{http_code}' http://order-api-canary:5000/api/orders)
+                          echo "$i $code"; [ "$code" = 200 ] || exit 1
+                        done
