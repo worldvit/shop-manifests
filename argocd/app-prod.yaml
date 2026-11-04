@@ -1,0 +1,21 @@
+# Argo CD Application — shop-manifests 저장소의 overlays/prod를 shop-prod 네임스페이스에 맞춘다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: shop-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/GITHUB_USER/shop-manifests.git   # 내 저장소로 바꾼다
+    targetRevision: main
+    path: overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: shop-prod
+  syncPolicy:
+    automated:
+      prune: true      # Git에서 지운 리소스는 클러스터에서도 지움
+      selfHeal: true   # 누가 kubectl로 바꿔도 Git 상태로 되돌림
+    syncOptions:
+      - CreateNamespace=true

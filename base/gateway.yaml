@@ -1,0 +1,45 @@
+# 클러스터 안의 경로 라우터 (로컬 compose의 gateway, ECS의 ALB 역할)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-conf
+data:
+  default.conf: |
+    server {
+        listen 80;
+        location /api/products { proxy_pass http://product-api:5000; }
+        location /api/orders   { proxy_pass http://order-api:5000; }
+        location /             { proxy_pass http://frontend:80; }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels: { app: gateway }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: gateway }
+  template:
+    metadata:
+      labels: { app: gateway }
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.29-alpine
+          ports: [{ containerPort: 80 }]
+          volumeMounts: [{ name: conf, mountPath: /etc/nginx/conf.d }]
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+      volumes:
+        - name: conf
+          configMap: { name: gateway-conf }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+spec:
+  selector: { app: gateway }
+  ports: [{ port: 80, targetPort: 80 }]
